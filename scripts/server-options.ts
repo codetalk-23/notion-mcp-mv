@@ -1,7 +1,7 @@
 import type { StreamableHTTPServerTransportOptions } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 
 export const DEFAULT_HTTP_HOST = '127.0.0.1'
-
+// test
 export type ServerOptions = {
   transport: string
   port: number
