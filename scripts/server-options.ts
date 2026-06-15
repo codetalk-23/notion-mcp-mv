@@ -77,6 +77,9 @@ Environment Variables:
   NOTION_TOKEN             Notion integration token (recommended)
   OPENAPI_MCP_HEADERS      JSON string with Notion API headers (alternative)
   AUTH_TOKEN               Bearer token for HTTP transport authentication (alternative to --auth-token)
+  MCP_PATH_SECRET          Secret URL path segment for HTTP transport (e.g. /mcp/<secret>).
+                            Use this for clients that can't send a custom Authorization header
+                            (e.g. Claude.ai custom connectors). Overrides bearer-token auth.
 
 Examples:
   notion-mcp-server                                      # Use stdio transport (default)

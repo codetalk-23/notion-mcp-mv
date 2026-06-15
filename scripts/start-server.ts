@@ -36,10 +36,16 @@ export async function startServer(args: string[] = process.argv) {
     const app = express()
     app.use(express.json())
 
+    // Path-based secret (for clients like Claude.ai's custom connector UI that
+    // cannot send a custom Authorization header). When set, the MCP endpoint is
+    // mounted at /mcp/<secret> and the bearer-token check below is skipped.
+    const pathSecret = process.env.MCP_PATH_SECRET
+    const mcpPath = pathSecret ? '/mcp/:pathSecret' : '/mcp'
+
     // Generate or use provided auth token (from CLI arg or env var) only if auth is enabled
     let authToken: string | undefined
     let authTokenFilePath: string | undefined
-    if (!options.unsafeDisableAuth) {
+    if (!pathSecret && !options.unsafeDisableAuth) {
       authToken = options.authToken || process.env.AUTH_TOKEN || randomBytes(32).toString('hex')
       if (!options.authToken && !process.env.AUTH_TOKEN) {
         // Write auto-generated token to a file with restricted permissions instead of logging it
@@ -81,6 +87,15 @@ export async function startServer(args: string[] = process.argv) {
       next()
     }
 
+    // Path-secret middleware: 404 if the URL's secret segment doesn't match
+    const validatePathSecret = (req: express.Request, res: express.Response, next: express.NextFunction): void => {
+      if (req.params.pathSecret !== pathSecret) {
+        res.status(404).end()
+        return
+      }
+      next()
+    }
+
     // Health endpoint (no authentication required)
     app.get('/health', (req, res) => {
       res.status(200).json({
@@ -91,9 +106,11 @@ export async function startServer(args: string[] = process.argv) {
       })
     })
 
-    // Apply authentication to all /mcp routes only if auth is enabled
-    if (!options.unsafeDisableAuth) {
-      app.use('/mcp', authenticateToken)
+    // Apply authentication to all /mcp routes
+    if (pathSecret) {
+      app.use(mcpPath, validatePathSecret)
+    } else if (!options.unsafeDisableAuth) {
+      app.use(mcpPath, authenticateToken)
     } else {
       for (const warning of getUnsafeAuthWarnings(options)) {
         console.warn(warning)
@@ -105,7 +122,7 @@ export async function startServer(args: string[] = process.argv) {
     const dnsRebindingProtectionOptions = getDnsRebindingProtectionOptions(options)
 
     // Handle POST requests for client-to-server communication
-    app.post('/mcp', async (req, res) => {
+    app.post(mcpPath, async (req, res) => {
       try {
         // Check for existing session ID
         const sessionId = req.headers['mcp-session-id'] as string | undefined
@@ -165,7 +182,7 @@ export async function startServer(args: string[] = process.argv) {
     })
 
     // Handle GET requests for server-to-client notifications via Streamable HTTP
-    app.get('/mcp', async (req, res) => {
+    app.get(mcpPath, async (req, res) => {
       const sessionId = req.headers['mcp-session-id'] as string | undefined
       if (!sessionId || !transports[sessionId]) {
         res.status(400).send('Invalid or missing session ID')
@@ -177,7 +194,7 @@ export async function startServer(args: string[] = process.argv) {
     })
 
     // Handle DELETE requests for session termination
-    app.delete('/mcp', async (req, res) => {
+    app.delete(mcpPath, async (req, res) => {
       const sessionId = req.headers['mcp-session-id'] as string | undefined
       if (!sessionId || !transports[sessionId]) {
         res.status(400).send('Invalid or missing session ID')
@@ -190,11 +207,14 @@ export async function startServer(args: string[] = process.argv) {
 
     const port = options.port
     const serverUrl = getHttpServerDisplayUrl(options)
+    const endpointPath = pathSecret ? `/mcp/${pathSecret}` : '/mcp'
     app.listen(port, options.host, async () => {
       console.log(`MCP Server listening on ${options.host}:${port}`)
-      console.log(`Endpoint: ${serverUrl}/mcp`)
+      console.log(`Endpoint: ${serverUrl}${endpointPath}`)
       console.log(`Health check: ${serverUrl}/health`)
-      if (options.unsafeDisableAuth) {
+      if (pathSecret) {
+        console.log(`Authentication: Path secret required (keep this URL private)`)
+      } else if (options.unsafeDisableAuth) {
         console.log(`Authentication: Disabled (unsafe)`)
         console.log(`DNS rebinding protection: Enabled`)
       } else {
