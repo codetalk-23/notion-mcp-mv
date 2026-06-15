@@ -19,7 +19,7 @@ type DnsRebindingProtectionOptions = Pick<
 export function parseServerOptions(argv: string[] = process.argv): ServerOptions {
   const args = argv.slice(2)
   let transport = 'stdio'
-  let port = 3000
+  let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000
   let host = DEFAULT_HTTP_HOST
   let authToken: string | undefined
   let unsafeDisableAuth = false

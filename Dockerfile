@@ -34,3 +34,4 @@ ENV OPENAPI_MCP_HEADERS="{}"
 
 # Set entrypoint
 ENTRYPOINT ["notion-mcp-server"]
+CMD ["--transport", "http", "--host", "0.0.0.0"]
