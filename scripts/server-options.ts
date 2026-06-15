@@ -1,7 +1,22 @@
 import type { StreamableHTTPServerTransportOptions } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 
 export const DEFAULT_HTTP_HOST = '127.0.0.1'
-// test
+export const DEFAULT_HTTP_PORT = 3000
+
+// Resolve a port value, falling back to `fallback` for anything that is not a
+// valid TCP port. This guarantees we never hand NaN to `server.listen()`, which
+// throws ERR_SOCKET_BAD_PORT (e.g. when PORT is unset or non-numeric).
+function resolvePort(value: string | undefined, fallback: number): number {
+  if (value === undefined || value.trim() === '') {
+    return fallback
+  }
+  const parsed = parseInt(value, 10)
+  if (Number.isInteger(parsed) && parsed >= 0 && parsed < 65536) {
+    return parsed
+  }
+  return fallback
+}
+
 export type ServerOptions = {
   transport: string
   port: number
@@ -19,7 +34,7 @@ type DnsRebindingProtectionOptions = Pick<
 export function parseServerOptions(argv: string[] = process.argv): ServerOptions {
   const args = argv.slice(2)
   let transport = 'stdio'
-  let port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000
+  let port = resolvePort(process.env.PORT, DEFAULT_HTTP_PORT)
   let host = DEFAULT_HTTP_HOST
   let authToken: string | undefined
   let unsafeDisableAuth = false
@@ -30,7 +45,7 @@ export function parseServerOptions(argv: string[] = process.argv): ServerOptions
       transport = args[i + 1]
       i++
     } else if (args[i] === '--port' && i + 1 < args.length) {
-      port = parseInt(args[i + 1], 10)
+      port = resolvePort(args[i + 1], port)
       i++
     } else if (args[i] === '--host' && i + 1 < args.length) {
       host = args[i + 1]
